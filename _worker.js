@@ -98,7 +98,7 @@ export default {
               },
               transport: {
                 type: "ws",
-                path: `/proxyip=proxyip.${c.code}.cmliussss.net``,
+                path: `/proxyip=proxyip.${c.code}.cmliussss.net`,
                 headers: { Host: servername },
               },
             });
@@ -163,7 +163,7 @@ export default {
               `    servername: '${servername}'\n` +
               `    client-fingerprint: chrome\n` +
               `    ws-opts:\n` +
-              `      path: `/proxyip=proxyip.${c.code}.cmliussss.net`'\n` +
+              `      path: `/proxyip=proxyip.${c.code}.cmliussss.net`\n` +
               `      headers:\n` +
               `        Host: '${servername}'\n`;
           }
