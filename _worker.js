@@ -1,10 +1,13 @@
 /**
- * Unicode-safe Base64（修复 1101）
+ * Unicode-safe Base64（修复 1101 - 避免栈溢出）
  */
 function base64Encode(str) {
-  return btoa(
-    String.fromCharCode(...new TextEncoder().encode(str))
-  );
+  const bytes = new TextEncoder().encode(str);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
 }
 
 /**
@@ -20,18 +23,10 @@ function detectFormat(request) {
     ua.includes("shadowrocket") ||
     ua.includes("quantumult") ||
     ua.includes("kitsunebi")
-  ) return "v2ray";
+  )
+    return "v2ray";
 
   return "v2ray"; // 兜底
-}
-
-/**
- * UA 伪装（给 API 用）
- */
-function getFakeUA(request) {
-  const ua = request.headers.get("User-Agent") || "";
-  if (/clash|v2ray|nekobox|sing-box/i.test(ua)) return ua;
-  return "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 }
 
 export default {
@@ -47,26 +42,34 @@ export default {
     }
 
     const uuid = params.get("uuid");
-    const server = params.get("server") || "tunnel-na.8443.buzz";
+    // 统一前后端默认值
+    const server = params.get("server") || "visa.com";
     const port = parseInt(params.get("port") || "443", 10);
-    const servername = params.get("servername") || server;
+    const servername = params.get("servername") || "vpn-hk.pages.dev";
     const tls = (params.get("tls") || "true") === "true";
 
-    // 👇 UA 自动判断格式（format 参数仍可手动覆盖）
-    const format =
-      (params.get("format") || detectFormat(request)).toLowerCase();
+    // UA 自动判断格式（format 参数仍可手动覆盖）
+    const format = (params.get("format") || detectFormat(request)).toLowerCase();
 
     /* ================= 获取 API ================= */
-    let apiData = null;
-    try {
-      const resp = await fetch("https://api.icmp9.com/online.php", {
-        headers: { "User-Agent": getFakeUA(request) },
-        cf: { cacheTtl: 60, cacheEverything: true },
-      });
-      apiData = await resp.json();
-    } catch {
-      apiData = null;
-    }
+    const apiData = {
+      success: true,
+      countries: [
+        { emoji: "🇺🇸", code: "US", name: "美国" },
+        { emoji: "🇳🇱", code: "NL", name: "荷兰" },
+        { emoji: "🇩🇪", code: "DE", name: "德国" },
+        { emoji: "🇸🇬", code: "SG", name: "新加坡" },
+        { emoji: "🇯🇵", code: "JP", name: "日本" },
+        { emoji: "🇬🇧", code: "GB", name: "英国" },
+        { emoji: "🇫🇷", code: "FR", name: "法国" },
+        { emoji: "🇸🇪", code: "SE", name: "瑞典" },
+        { emoji: "🇫🇮", code: "FI", name: "芬兰" },
+        { emoji: "🇭🇰", code: "HK", name: "香港" },
+        { emoji: "🇰🇷", code: "KR", name: "韩国" },
+        { emoji: "🇱🇻", code: "LV", name: "拉脱维亚" },
+        { emoji: "🇨🇦", code: "CA", name: "加拿大" },
+      ],
+    };
 
     /* ================= sing-box / nekobox ================= */
     if (format === "singbox" || format === "nekobox") {
@@ -100,17 +103,36 @@ export default {
       }
 
       return new Response(
-        JSON.stringify({
-          log: { level: "info" },
-          inbounds: [],
-          outbounds: [
-            { type: "selector", tag: "🚀 节点选择", outbounds: tags },
-            ...outbounds,
-            { type: "direct", tag: "direct" },
-            { type: "block", tag: "block" },
-          ],
-          route: { final: "🚀 节点选择" },
-        }, null, 2),
+        JSON.stringify(
+          {
+            log: { level: "info" },
+            dns: {
+              servers: [
+                {
+                  tag: "remote",
+                  address: "https://1.1.1.1/dns-query",
+                  detour: "🚀 节点选择",
+                },
+                {
+                  tag: "local",
+                  address: "223.5.5.5",
+                  detour: "direct",
+                },
+              ],
+              final: "remote",
+            },
+            inbounds: [],
+            outbounds: [
+              { type: "selector", tag: "🚀 节点选择", outbounds: tags },
+              ...outbounds,
+              { type: "direct", tag: "direct" },
+              { type: "block", tag: "block" },
+            ],
+            route: { final: "🚀 节点选择" },
+          },
+          null,
+          2
+        ),
         { headers: { "Content-Type": "application/json; charset=utf-8" } }
       );
     }
@@ -120,7 +142,8 @@ export default {
       let yaml = "";
       const names = ["DIRECT"];
 
-      yaml += "mixed-port: 7890\nallow-lan: true\nmode: rule\nlog-level: info\n\nproxies:\n";
+      yaml +=
+        "mixed-port: 7890\nallow-lan: true\nmode: rule\nlog-level: info\n\nproxies:\n";
 
       if (apiData?.success && Array.isArray(apiData.countries)) {
         for (const c of apiData.countries) {
@@ -128,25 +151,25 @@ export default {
           names.push(name);
 
           yaml +=
-`  - name: '${name}'
-    type: vmess
-    server: '${server}'
-    port: ${port}
-    uuid: ${uuid}
-    alterId: 0
-    cipher: auto
-    tls: ${tls}
-    servername: '${servername}'
-    network: ws
-    ws-opts:
-      path: '/${c.code}'
-      headers:
-        Host: '${servername}'
-`;
+            `  - name: '${name}'\n` +
+            `    type: vmess\n` +
+            `    server: '${server}'\n` +
+            `    port: ${port}\n` +
+            `    uuid: ${uuid}\n` +
+            `    alterId: 0\n` +
+            `    cipher: auto\n` +
+            `    tls: ${tls}\n` +
+            `    servername: '${servername}'\n` +
+            `    network: ws\n` +
+            `    ws-opts:\n` +
+            `      path: '/${c.code}'\n` +
+            `      headers:\n` +
+            `        Host: '${servername}'\n`;
         }
       }
 
-      yaml += "\nproxy-groups:\n  - name: '🚀 节点选择'\n    type: select\n    proxies:\n";
+      yaml +=
+        "\nproxy-groups:\n  - name: '🚀 节点选择'\n    type: select\n    proxies:\n";
       for (const n of names) yaml += `      - '${n}'\n`;
       yaml += "\nrules:\n  - MATCH, 🚀 节点选择\n";
 
@@ -155,7 +178,7 @@ export default {
       });
     }
 
-    /* ================= 默认 v2ray ================= */
+    /* ================= 默认 v2ray（vmess://） ================= */
     const list = [];
 
     if (apiData?.success && Array.isArray(apiData.countries)) {
@@ -170,22 +193,21 @@ export default {
                 port: String(port),
                 id: uuid,
                 aid: "0",
-                scy: "auto",
                 net: "ws",
                 type: "none",
                 host: servername,
                 path: `/${c.code}`,
                 tls: tls ? "tls" : "",
                 sni: servername,
-                alpn: "",
-                fp: "",
+                alpn: "h2,http/1.1",
+                fp: "chrome",
               })
             )
         );
       }
     }
 
-    return new Response(base64Encode(list.join("\n")), {
+    return new Response(list.join("\n"), {
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
   },
@@ -199,7 +221,7 @@ function getHTML(origin) {
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ICMP9 订阅生成器</title>
+<title>Vless多国家订阅生成器</title>
 
 <style>
 :root {
@@ -238,7 +260,6 @@ body {
   font-family: system-ui, -apple-system, BlinkMacSystemFont;
   background: var(--bg);
   color: var(--text);
-
   display: flex;
   flex-direction: column;
 }
@@ -278,7 +299,6 @@ h1 {
   cursor: pointer;
 }
 
-/* 表单 */
 label {
   display: block;
   margin-top: 16px;
@@ -316,7 +336,6 @@ input:focus, select:focus {
   box-shadow: 0 0 0 3px rgba(99,102,241,.2);
 }
 
-/* 按钮 */
 button {
   width: 100%;
   margin-top: 20px;
@@ -347,7 +366,6 @@ button:hover {
   background: rgba(99,102,241,.08);
 }
 
-/* 结果 */
 .result {
   margin-top: 16px;
   padding: 14px;
@@ -358,7 +376,6 @@ button:hover {
   word-break: break-all;
 }
 
-/* Footer */
 footer {
   margin-top: auto;
   padding: 16px 0 4px;
@@ -378,7 +395,6 @@ footer a:hover {
   border-bottom-color: var(--focus);
 }
 
-/* Toast */
 .toast {
   position: fixed;
   bottom: 24px;
@@ -410,7 +426,7 @@ footer a:hover {
   <div class="page">
     <div class="card">
       <div class="header">
-        <h1>🚀 ICMP9 订阅生成器</h1>
+        <h1>🚀 Vless多国家 订阅生成器</h1>
         <div class="toggle" id="themeToggle">🌙</div>
       </div>
 
@@ -418,13 +434,13 @@ footer a:hover {
       <input id="uuid" placeholder="必需" />
 
       <label>Server</label>
-      <input id="server" value="tunnel-na.8443.buzz" />
+      <input id="server" value="visa.com" />
 
       <label>Port</label>
       <input id="port" value="443" />
 
       <label>Server Name (SNI)</label>
-      <input id="servername" value="tunnel-na.8443.buzz" />
+      <input id="servername" value="vpn-hk.pages.dev" />
 
       <label>订阅格式</label>
       <select id="format">
@@ -493,12 +509,6 @@ function gen() {
   showToast("订阅链接已生成");
 }
 
-/**
- * ✅ 修复点：
- * 1) 某些环境/协议下 navigator.clipboard.writeText 会被拒绝或无回调
- * 2) 失败时需要也给出 toast 提示
- * 3) 提供一个兼容性更好的回退方案（execCommand copy）
- */
 function fallbackCopyText(text) {
   const ta = document.createElement('textarea');
   ta.value = text;
@@ -522,17 +532,13 @@ function fallbackCopyText(text) {
 async function copy() {
   if (!currentUrl) return showToast("请先生成订阅链接");
 
-  // 现代剪贴板 API（需要安全上下文 https/localhost 且有权限）
   try {
     if (navigator.clipboard && window.isSecureContext) {
       await navigator.clipboard.writeText(currentUrl);
       return showToast("订阅链接已复制");
     }
-  } catch (e) {
-    // 继续走回退方案
-  }
+  } catch (e) {}
 
-  // 回退：execCommand（兼容性更好）
   const ok = fallbackCopyText(currentUrl);
   if (ok) showToast("订阅链接已复制");
   else showToast("复制失败：请手动选择链接复制");
@@ -560,9 +566,8 @@ const theme = localStorage.getItem(STORAGE.THEME) || "dark";
 document.documentElement.dataset.theme = theme;
 $('themeToggle').textContent = theme === "dark" ? "🌙" : "☀️";
 
-// Footer 自动年份
 $('year').textContent = new Date().getFullYear();
 </script>
 </body>
 </html>`;
-}
+                }
