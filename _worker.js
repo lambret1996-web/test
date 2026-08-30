@@ -1,4 +1,4 @@
-/**
+/**Vlees多国家节点生成器
  * Unicode-safe Base64（修复 1101 - 避免栈溢出）
  */
 function base64Encode(str) {
@@ -82,7 +82,7 @@ export default {
           tags.push(tag);
 
           outbounds.push({
-            type: "vmess",
+            type: "vless",
             tag,
             server,
             server_port: port,
@@ -184,7 +184,7 @@ export default {
     if (apiData?.success && Array.isArray(apiData.countries)) {
       for (const c of apiData.countries) {
         list.push(
-          "vmess://" +
+          "vless://" +
             base64Encode(
               JSON.stringify({
                 v: "2",
