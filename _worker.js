@@ -98,7 +98,7 @@ export default {
               },
               transport: {
                 type: "ws",
-                path: `/${c.code}`,
+                path: `/proxyip=proxyip.${c.code}.cmliussss.net``,
                 headers: { Host: servername },
               },
             });
@@ -163,7 +163,7 @@ export default {
               `    servername: '${servername}'\n` +
               `    client-fingerprint: chrome\n` +
               `    ws-opts:\n` +
-              `      path: '/${c.code}'\n` +
+              `      path: `/proxyip=proxyip.${c.code}.cmliussss.net`'\n` +
               `      headers:\n` +
               `        Host: '${servername}'\n`;
           }
@@ -193,7 +193,7 @@ export default {
             security: tls ? "tls" : "none",
             type: "ws",
             host: servername,
-            path: `/${c.code}`,
+            path: `/proxyip=proxyip.${c.code}.cmliussss.net`,
             sni: servername,
             alpn: "h2,http/1.1",
             fp: "chrome",
