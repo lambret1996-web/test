@@ -186,7 +186,7 @@ export default {
     if (apiData?.success && Array.isArray(apiData.countries)) {
       for (const c of apiData.countries) {
         for (const server of servers) {
-          const ipTag = servers.length > 1 ? ` ${server}` : "";
+          const ipTag = servers.length > 1 ? ` ${server}` : "高速优选";
           const name = `${c.emoji} ${c.code.toUpperCase()} | ${c.name}${ipTag}`;
           const query = new URLSearchParams({
             encryption: "none",
