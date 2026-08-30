@@ -56,7 +56,7 @@ export default {
     const format =
       (params.get("format") || detectFormat(request)).toLowerCase();
 
-    /* ================= 获取 API ================= 
+    /* ================= 获取 API ================= */
     let apiData = null;
     try {
       const resp = await fetch("https://api.icmp9.com/online.php", {
@@ -66,26 +66,8 @@ export default {
       apiData = await resp.json();
     } catch {
       apiData = null;
-    }*/
-const apiData = {
-  success:true,
-  countries:[
-    {emoji:"🇺🇸",code:"US",name:"美国"},
-    {emoji:"🇳🇱",code:"NL",name:"荷兰"},
-    {emoji:"🇩🇪",code:"DE",name:"德国"},
-    {emoji:"🇸🇬",code:"SG",name:"新加坡"},
-    {emoji:"🇯🇵",code:"JP",name:"日本"},
-    {emoji:"🇬🇧",code:"GB",name:"英国"},
-    {emoji:"🇫🇷",code:"FR",name:"法国"},
-    {emoji:"🇸🇪",code:"SE",name:"瑞典"},
-    {emoji:"🇫🇮",code:"FI",name:"芬兰"},
-    {emoji:"🇭🇰",code:"HK",name:"香港"},
-    {emoji:"🇰🇷",code:"KR",name:"韩国"},
-    {emoji:"🇱🇻",code:"LV",name:"拉脱维亚"},
-    {emoji:"🇨🇦",code:"CA",name:"加拿大"},
-  ]
-};
-    
+    }
+
     /* ================= sing-box / nekobox ================= */
     if (format === "singbox" || format === "nekobox") {
       const outbounds = [];
@@ -164,9 +146,6 @@ const apiData = {
         }
       }
 
-
-
-    
       yaml += "\nproxy-groups:\n  - name: '🚀 节点选择'\n    type: select\n    proxies:\n";
       for (const n of names) yaml += `      - '${n}'\n`;
       yaml += "\nrules:\n  - MATCH, 🚀 节点选择\n";
@@ -176,58 +155,42 @@ const apiData = {
       });
     }
 
-
-  
     /* ================= 默认 v2ray ================= */
     const list = [];
 
     if (apiData?.success && Array.isArray(apiData.countries)) {
       for (const c of apiData.countries) {
         list.push(
-          "vless://" +
+          "vmess://" +
             base64Encode(
               JSON.stringify({
-               v: "2",
+                v: "2",
                 ps: `${c.emoji} ${c.code.toUpperCase()} | ${c.name}`,
                 add: server,
                 port: String(port),
                 id: uuid,
-              
+                aid: "0",
+                scy: "auto",
                 net: "ws",
                 type: "none",
                 host: servername,
-                path: `/Proxyip.${c.code}.CMLiussss.net`,
+                path: `/${c.code}`,
                 tls: tls ? "tls" : "",
                 sni: servername,
-                alpn: "http/1.1",
-                fp: "chrome",
+                alpn: "",
+                fp: "",
               })
             )
         );
       }
     }
 
-    return new Response(base64Encode（list.join("\n")), {
+    return new Response(base64Encode(list.join("\n")), {
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
   },
 };
 
-
- /*   
-  const list = [];
-if (apiData?.success && Array.isArray(apiData.countries)) {
-  for (const c of apiData.countries) {
-    const ps = `${c.emoji} ${c.code.toUpperCase()} | ${c.name}`;
-    const vlessLink = `vless://${uuid}@${server}:${port}?encryption=none&security=${tls ? "tls" : "none"}${tls ? `&sni=${servername}` : ""}&type=ws&host=${servername}&path=/Proxyip.${c.code}.CMLiussss.net#${encodeURIComponent(ps)}`;
-    list.push(vlessLink);
-  }
-}
-
-return new Response(base64Encode(list.join("\n")), {
-  headers: { "Content-Type": "text/plain; charset=utf-8" },
-});
-    */
 /* ================= 前端 HTML ================= */
 
 function getHTML(origin) {
@@ -236,7 +199,7 @@ function getHTML(origin) {
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Vless多国家订阅生成器</title>
+<title>ICMP9 订阅生成器</title>
 
 <style>
 :root {
@@ -447,7 +410,7 @@ footer a:hover {
   <div class="page">
     <div class="card">
       <div class="header">
-        <h1>🚀 Vless多国家订阅生成器</h1>
+        <h1>🚀 ICMP9 订阅生成器</h1>
         <div class="toggle" id="themeToggle">🌙</div>
       </div>
 
@@ -455,13 +418,13 @@ footer a:hover {
       <input id="uuid" placeholder="必需" />
 
       <label>Server</label>
-      <input id="server" value="visa.com" />
+      <input id="server" value="tunnel-na.8443.buzz" />
 
       <label>Port</label>
       <input id="port" value="443" />
 
       <label>Server Name (SNI)</label>
-      <input id="servername" value="vpn-hk.pages.dev" />
+      <input id="servername" value="tunnel-na.8443.buzz" />
 
       <label>订阅格式</label>
       <select id="format">
