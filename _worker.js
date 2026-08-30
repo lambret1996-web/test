@@ -1,6 +1,8 @@
+
 /**
- * VLESS 多国家节点订阅生成器（修正版）
+ * VLESS 多国家节点订阅生成器（修正版 + 多IP支持）
  * 修复：v2ray 默认格式改用标准 VLESS URI；Clash 改用 vless 类型；sing-box 移除 VMess 残留字段；三端统一 uTLS 指纹
+ * 新增：server 参数支持逗号分隔多个 IP，每个国家为每个 IP 生成一个节点
  */
 
 /** Unicode-safe Base64 */
@@ -41,7 +43,11 @@ export default {
     }
 
     const uuid = params.get("uuid");
-    const server = params.get("server") || "visa.com";
+    // server 支持逗号分隔多个 IP，例如 server=1.2.3.4,5.6.7.8
+    const servers = (params.get("server") || "visa.com")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
     const port = parseInt(params.get("port") || "443", 10);
     const servername = params.get("servername") || "vpn-hk.pages.dev";
     const tls = (params.get("tls") || "true") === "true";
@@ -74,26 +80,29 @@ export default {
 
       if (apiData?.success && Array.isArray(apiData.countries)) {
         for (const c of apiData.countries) {
-          const tag = `${c.emoji} ${c.code.toUpperCase()} | ${c.name}`;
-          tags.push(tag);
+          for (const server of servers) {
+            const ipTag = servers.length > 1 ? ` ${server}` : "";
+            const tag = `${c.emoji} ${c.code.toUpperCase()} | ${c.name}${ipTag}`;
+            tags.push(tag);
 
-          outbounds.push({
-            type: "vless",
-            tag,
-            server,
-            server_port: port,
-            uuid,
-            tls: {
-              enabled: tls,
-              server_name: servername,
-              utls: { enabled: true, fingerprint: "chrome" },
-            },
-            transport: {
-              type: "ws",
-              path: `/${c.code}`,
-              headers: { Host: servername },
-            },
-          });
+            outbounds.push({
+              type: "vless",
+              tag,
+              server,
+              server_port: port,
+              uuid,
+              tls: {
+                enabled: tls,
+                server_name: servername,
+                utls: { enabled: true, fingerprint: "chrome" },
+              },
+              transport: {
+                type: "ws",
+                path: `/${c.code}`,
+                headers: { Host: servername },
+              },
+            });
+          }
         }
       }
 
@@ -138,23 +147,26 @@ export default {
 
       if (apiData?.success && Array.isArray(apiData.countries)) {
         for (const c of apiData.countries) {
-          const name = `${c.emoji} ${c.code.toUpperCase()} | ${c.name}`;
-          names.push(name);
+          for (const server of servers) {
+            const ipTag = servers.length > 1 ? ` ${server}` : "";
+            const name = `${c.emoji} ${c.code.toUpperCase()} | ${c.name}${ipTag}`;
+            names.push(name);
 
-          yaml +=
-            `  - name: '${name}'\n` +
-            `    type: vless\n` +
-            `    server: '${server}'\n` +
-            `    port: ${port}\n` +
-            `    uuid: ${uuid}\n` +
-            `    network: ws\n` +
-            `    tls: ${tls}\n` +
-            `    servername: '${servername}'\n` +
-            `    client-fingerprint: chrome\n` +
-            `    ws-opts:\n` +
-            `      path: '/${c.code}'\n` +
-            `      headers:\n` +
-            `        Host: '${servername}'\n`;
+            yaml +=
+              `  - name: '${name}'\n` +
+              `    type: vless\n` +
+              `    server: '${server}'\n` +
+              `    port: ${port}\n` +
+              `    uuid: ${uuid}\n` +
+              `    network: ws\n` +
+              `    tls: ${tls}\n` +
+              `    servername: '${servername}'\n` +
+              `    client-fingerprint: chrome\n` +
+              `    ws-opts:\n` +
+              `      path: '/${c.code}'\n` +
+              `      headers:\n` +
+              `        Host: '${servername}'\n`;
+          }
         }
       }
 
@@ -173,20 +185,23 @@ export default {
 
     if (apiData?.success && Array.isArray(apiData.countries)) {
       for (const c of apiData.countries) {
-        const name = `${c.emoji} ${c.code.toUpperCase()} | ${c.name}`;
-        const query = new URLSearchParams({
-          encryption: "none",
-          security: tls ? "tls" : "none",
-          type: "ws",
-          host: servername,
-          path: `/${c.code}`,
-          sni: servername,
-          alpn: "h2,http/1.1",
-          fp: "chrome",
-        });
-        list.push(
-          `vless://${uuid}@${server}:${port}?${query.toString()}#${encodeURIComponent(name)}`
-        );
+        for (const server of servers) {
+          const ipTag = servers.length > 1 ? ` ${server}` : "";
+          const name = `${c.emoji} ${c.code.toUpperCase()} | ${c.name}${ipTag}`;
+          const query = new URLSearchParams({
+            encryption: "none",
+            security: tls ? "tls" : "none",
+            type: "ws",
+            host: servername,
+            path: `/${c.code}`,
+            sni: servername,
+            alpn: "h2,http/1.1",
+            fp: "chrome",
+          });
+          list.push(
+            `vless://${uuid}@${server}:${port}?${query.toString()}#${encodeURIComponent(name)}`
+          );
+        }
       }
     }
 
@@ -290,7 +305,7 @@ footer a:hover { color: var(--text); border-bottom-color: var(--focus); }
       </div>
       <label>UUID（ICMP9 API Key）</label>
       <input id="uuid" placeholder="必需" />
-      <label>Server</label>
+      <label>Server（多个 IP 用英文逗号分隔）</label>
       <input id="server" value="visa.com" />
       <label>Port</label>
       <input id="port" value="443" />
