@@ -178,7 +178,7 @@ const apiData = {
 
 
   
-    /* ================= 默认 v2ray ================= 
+    /* ================= 默认 v2ray ================= */
     const list = [];
 
     if (apiData?.success && Array.isArray(apiData.countries)) {
@@ -213,8 +213,8 @@ const apiData = {
   },
 };
 
-*/
-    
+
+ /*   
   const list = [];
 if (apiData?.success && Array.isArray(apiData.countries)) {
   for (const c of apiData.countries) {
@@ -227,7 +227,7 @@ if (apiData?.success && Array.isArray(apiData.countries)) {
 return new Response(base64Encode(list.join("\n")), {
   headers: { "Content-Type": "text/plain; charset=utf-8" },
 });
-    
+    */
 /* ================= 前端 HTML ================= */
 
 function getHTML(origin) {
