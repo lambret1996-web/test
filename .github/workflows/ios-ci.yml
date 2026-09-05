@@ -31,7 +31,7 @@ on:
 env:
   项目名称: 'YourProject'                        # 【需修改】改成你的项目名
   Scheme名: 'YourProject'                        # 【需修改】改成你的 Scheme 名
-  工作区文件: 'main'           # 【需修改】改成你的 .xcworkspace 或 .xcodeproj
+  工作区文件: 'YourProject.xcworkspace'           # 【需修改】改成你的 .xcworkspace 或 .xcodeproj
   开发者团队ID: 'XXXXXXXXXX'                      # 【不签名时不用改】仅签名打包时需要
   签名身份: 'Apple Distribution'                  # 【不签名时不用改】仅签名打包时需要
   描述文件名称: 'YourProfileName'                  # 【不签名时不用改】仅签名打包时需要
@@ -92,11 +92,6 @@ jobs:
           path: TestResults.xcresult
 
   # ==================== 阶段二：不签名构建 + 导出 IPA ====================
-  # 【不签名说明】
-  # - 不需要证书、描述文件、Team ID
-  # - 不需要配置任何 GitHub Secrets
-  # - 导出的 IPA 是未签名的，不能直接安装到真机
-  # - 适用于：编译验证、二次签名、内部分发测试
   不签名构建:
     name: 不签名构建并导出IPA
     needs: 代码检查与测试
@@ -126,7 +121,6 @@ jobs:
         run: xcodebuild -resolvePackageDependencies -workspace ${{ env.工作区文件 }} -scheme ${{ env.Scheme名 }}
 
       # ---------- 第一步：不签名 Archive ----------
-      # 【关键】使用 iphoneos SDK 编译真机架构，但禁用签名
       - name: 不签名 Archive 归档
         run: |
           xcodebuild archive \
@@ -142,30 +136,100 @@ jobs:
             DEVELOPMENT_TEAM=""
 
       # ---------- 第二步：从 Archive 中提取 .app 并打包成 IPA ----------
-      # 【原理】IPA = zip(Payload/xxx.app)，手动组装即可
       - name: 导出未签名 IPA
         run: |
-          # 创建 Payload 目录
           mkdir -p build/Payload
-
-          # 从 xcarchive 中找到 .app 文件并复制到 Payload 目录
           APP_PATH=$(find build/${{ env.项目名称 }}.xcarchive/Products/Applications -name "*.app" -maxdepth 1 | head -1)
           echo "找到 .app 文件: $APP_PATH"
           cp -R "$APP_PATH" build/Payload/
-
-          # 将 Payload 目录压缩为 zip，然后改名为 .ipa
           cd build
           zip -r ${{ env.项目名称 }}-unsigned.ipa Payload
           cd ..
-
-          # 显示产物信息
           echo "========== 导出完成 =========="
           ls -lh build/${{ env.项目名称 }}-unsigned.ipa
 
-      # ---------- 第三步：上传 IPA 产物 ----------
+      # ---------- 第三步：上传未签名 IPA 产物 ----------
       - name: 上传未签名 IPA 产物
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.项目名称 }}-未签名安装包
           path: build/${{ env.项目名称 }}-unsigned.ipa
-      
+          retention-days: 14
+
+      # ---------- 第四步：打包 readme.md 文件 ----------
+      - name: 上传 readme.md 文件
+        uses: actions/upload-artifact@v4
+        with:
+          name: readme文档
+          path: readme.md
+          retention-days: 14
+
+  # ==================== 阶段三：签名打包 ====================
+  构建与签名:
+    name: 构建与签名
+    needs: 代码检查与测试
+    runs-on: macos-15
+    timeout-minutes: 45
+    if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.构建模式 == '签名打包' }}
+
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 选择 Xcode 版本
+        run: sudo xcode-select -s /Applications/Xcode_16.0.app
+        # 【需修改】确认 Xcode 版本路径
+
+      - name: 安装苹果签名证书
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.P12_BASE64 }}
+          p12-password: ${{ secrets.P12_PASSWORD }}
+
+      - name: 安装描述文件
+        run: |
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "${{ secrets.PROVISIONING_PROFILE_BASE64 }}" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
+
+      - name: 构建 Archive 归档
+        run: |
+          xcodebuild archive \
+            -workspace ${{ env.工作区文件 }} \
+            -scheme ${{ env.Scheme名 }} \
+            -configuration ${{ github.event.inputs.构建配置 }} \
+            -archivePath ${{ github.workspace }}/build/${{ env.项目名称 }}.xcarchive \
+            -destination 'generic/platform=iOS' \
+            DEVELOPMENT_TEAM=${{ env.开发者团队ID }} \
+            CODE_SIGN_IDENTITY="${{ env.签名身份 }}" \
+            PROVISIONING_PROFILE_SPECIFIER="${{ env.描述文件名称 }}"
+
+      - name: 导出 IPA 安装包
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath ${{ github.workspace }}/build/${{ env.项目名称 }}.xcarchive \
+            -exportPath ${{ github.workspace }}/build/export \
+            -exportOptionsPlist ${{ github.workspace }}/ExportOptions.plist
+
+      - name: 上传 IPA 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.项目名称 }}-安装包
+          path: build/export/*.ipa
+          retention-days: 14
+
+      # ---------- 打包 readme.md 文件 ----------
+      - name: 上传 readme.md 文件
+        uses: actions/upload-artifact@v4
+        with:
+          name: readme文档
+          path: readme.md
+          retention-days: 14
+
+      - name: 上传到 TestFlight
+        if: github.ref == 'refs/heads/main'
+        uses: apple-actions/upload-testflight-build@v1
+        with:
+          app-store-connect-api-key-id: ${{ secrets.ASC_KEY_ID }}
+          app-store-connect-api-key-issuer-id: ${{ secrets.ASC_ISSUER_ID }}
+          app-store-connect-api-key-base64: ${{ secrets.ASC_KEY_BASE64 }}
+          ipa-path: build/export/*.ipa
