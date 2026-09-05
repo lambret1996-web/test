@@ -31,7 +31,7 @@ on:
 env:
   项目名称: 'YourProject'                        # 【需修改】改成你的项目名
   Scheme名: 'YourProject'                        # 【需修改】改成你的 Scheme 名
-  工作区文件: 'YourProject.xcworkspace'           # 【需修改】改成你的 .xcworkspace 或 .xcodeproj
+  工作区文件: 'main'           # 【需修改】改成你的 .xcworkspace 或 .xcodeproj
   开发者团队ID: 'XXXXXXXXXX'                      # 【不签名时不用改】仅签名打包时需要
   签名身份: 'Apple Distribution'                  # 【不签名时不用改】仅签名打包时需要
   描述文件名称: 'YourProfileName'                  # 【不签名时不用改】仅签名打包时需要
